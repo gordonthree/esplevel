@@ -2,37 +2,30 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
-#include <Adafruit_GFX.h>
+
 #include <Time.h>
-#include <Adafruit_SSD1306.h>
+
 #include <Wire.h>
 #include <NtpClientLib.h>
 #include <PubSubClient.h>
 #include <ADXL345.h>
-#include <Adafruit_ADS1015.h>
-#include <Adafruit_MCP4725.h>
+
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-#define OLED 0x3C
-#define ADS 0x49
-#define ADXL 0x53
-#define BEEP 0x16
-#define MCP 0x63
-#define DOW 14
+#define ADXL 0x53 // i2c address for accel
 
-Adafruit_ADS1115 ads(0x49);  // 0x49
-ADXL345 accel(ADXL345_ALT); // 0x53
-Adafruit_MCP4725 dac; // 0x63
-OneWire oneWire(DOW); // 0x14 gpio14
+#define HASDOW 0 // device has 1-wire device attached
+#define DOWPIN 4 // 1-wire data pin
+#define DOWPWR 5 // 1-wire power pin
+#define pinSDA 12 // i2c data pin
+#define pinSCL 13 // i2c clock oin
+
+ADXL345 accel(ADXL); // 0x53
+OneWire oneWire(DOWPIN); // 0x14 gpio14
 DallasTemperature ds18b20(&oneWire);
 
-#define OLED_RESET 13
-Adafruit_SSD1306 display(OLED_RESET);
-
-
-#define serialDebug 0x01
-#define DAC_RESOLUTION (8)
+#define serialDebug 0
 
 #define min(X, Y) (((X)<(Y))?(X):(Y))
 
@@ -42,36 +35,25 @@ Adafruit_SSD1306 display(OLED_RESET);
 const char* ssid = "Tell my WiFi I love her";
 const char* password = "2317239216";
 const char* mqtt_server = "mypi3";
-const char* myPub = "trailer/oled/msg";
-const char* mySub = "trailer/oled/cmd";
-const char* clientid = "oled1";
+const char* myPub = "trailer/esplevel/msg";
+const char* myAccel = "trailer/esplevel/accel";
+const char* mySub = "trailer/esplevel/cmd";
+const char* clientid = "esplevel";
 
-long lastReconnectAttempt = 0;
-long lastMsg = 0;
+uint16_t lastReconnectAttempt = 0;
+uint16_t lastMsg = 0;
 char msg[200];
-int value = 0;
-double celsius;
-int vpres = 0;
-int vref = 0;
-int freespace = 0;
-int reporting = 0;
-int vmin = 0;
-int vmax = 0;
-int vpwr = 0;
-byte rtcVals[8];
 byte i2cbuff[30];
 char devId[6];
-uint16_t dacOut = 0;
+double celsius;
+int16_t adxlX = 0;
+int16_t adxlY = 0;
+int16_t adxlZ = 0;
+uint8_t LOOPDELAY = 5; // time delay between updates (in 100ms chunks)
+
 
 WiFiClient espClient;
 PubSubClient client(espClient);
-
-void doBeep(byte cnt) {
-  while (cnt--) {
-    digitalWrite(BEEP, 1); delay(100);
-    digitalWrite(BEEP, 0); delay(100);
-  }
-}
 
 void i2c_wordwrite(int address, int cmd, int theWord) {
   //  Send output register address
@@ -188,7 +170,7 @@ void setup_wifi() {
   // ArduinoOTA.setPort(8266);
 
   // Hostname defaults to esp8266-[ChipID]
-  ArduinoOTA.setHostname("oled1");
+  ArduinoOTA.setHostname(clientid);
 
   // No authentication by default
   // ArduinoOTA.setPassword((const char *)"123");
@@ -232,66 +214,32 @@ boolean reconnect() {
     if (client.connect(clientid)) {
       if (serialDebug) Serial.println("Establish MQTT connection.");
       // Once connected, publish an announcement...
-      client.publish("home/oled1/msg", "hello world", true);
+      client.publish(myPub, "hello world", true);
       // ... and resubscribe
-      client.subscribe("home/oled1/cmd");
+      client.subscribe(mySub);
     }
   }
   return client.connected();
 }
 
-void testdrawchar(void) {
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0,0);
-
-  for (uint8_t i=0; i < 168; i++) {
-    if (i == '\n') continue;
-    display.write(i);
-    if ((i > 0) && (i % 21 == 0))
-      display.println();
-  }
-  display.display();
-  delay(1);
-}
-
-
-void testscrolltext(void) {
-  display.setTextSize(2);
-  display.setTextColor(WHITE);
-  display.setCursor(10,0);
-  display.clearDisplay();
-  display.println("scroll");
-  display.display();
-  delay(1);
-
-  display.startscrollright(0x00, 0x0F);
-  delay(2000);
-  display.stopscroll();
-  delay(1000);
-  display.startscrollleft(0x00, 0x0F);
-  delay(2000);
-  display.stopscroll();
-  delay(1000);
-  display.startscrolldiagright(0x00, 0x07);
-  delay(2000);
-  display.startscrolldiagleft(0x00, 0x07);
-  delay(2000);
-  display.stopscroll();
-}
-
 void setup() {
   if (serialDebug) Serial.begin(115200);
-  pinMode(BEEP, OUTPUT);
+
+
+  if (HASDOW) {
+    pinMode(DOWPWR, OUTPUT);
+    // turn on the one wire device
+    digitalWrite(DOWPWR, 1);
+    ds18b20.begin(); // start one wire temp probe
+  }
+
 
   // iic.pins(0, 2); //on ESP-01 sda gpio0 scl gpio2
   // iic.begin(0, 2);
-  Wire.begin(4,5);
+  Wire.begin(pinSDA, pinSCL);
 
   setup_wifi();
   i2c_scan();
-
-  ds18b20.begin(); // start one wire temp probe
 
   lastReconnectAttempt = 0;
   client.setServer(mqtt_server, 1883);
@@ -328,21 +276,6 @@ void setup() {
   accel.writeRange(ADXL345_RANGE_16G);
   accel.writeRate(ADXL345_RATE_200HZ);
   accel.start();
-
-  ads.begin();
-  ads.setGain(GAIN_ONE);
-  ads.setSPS(ADS1115_DR_250SPS);
-
-  dac.begin(0x63);
-
-  // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
-  display.dim(false);
-  // Clear the buffer.
-  display.clearDisplay();
-  display.display();
-  delay(200);
-
  }
 
 void loop() {
@@ -363,52 +296,27 @@ void loop() {
     client.loop();
   }
 
-  // text display tests
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0,0);
-  display.print("EDT ");
-  display.println(NTP.getTimeStr());
-
   if (accel.update()) {
-    display.print(accel.getX());
-    display.print(",");
-    display.print(accel.getY());
-    display.print(",");
-    display.print(accel.getZ());
-    display.println("");
+    adxlX = accel.getRawX();
+    adxlY = accel.getRawY();
+    adxlZ = accel.getRawZ();
+    sprintf(msg, "x=%d,y=%d,z=%d", adxlX, adxlY, adxlZ);
+    client.publish(myAccel, msg, true);
   }
 
-  int16_t adc0, adc1, adc2, adc3;
+  if (HASDOW) {
+    ds18b20.requestTemperatures();
+    byte retry = 5;
+    float temp=0.0;
+    do {
+      temp = ds18b20.getTempCByIndex(0);
+      retry--;
+      delay(2);
+    } while (retry > 0 && (temp == 85.0 || temp == (-127.0)));
+  }
 
-  adc0 = ads.readADC_SingleEnded(0);
-  adc1 = ads.readADC_SingleEnded(1);
-  adc2 = ads.readADC_SingleEnded(2);
-  adc3 = ads.readADC_SingleEnded(3);
-  display.print(adc0); display.print(",");
-  display.print(adc1); display.print(",");
-  display.print(adc2); display.print(",");
-  display.println(adc3);
-
-  ds18b20.requestTemperatures();
-  byte retry = 5;
-  float temp=0.0;
-  do {
-    temp = ds18b20.getTempCByIndex(0);
-    retry--;
-    delay(2);
-  } while (retry > 0 && (temp == 85.0 || temp == (-127.0)));
-
-  display.print(temp); display.println(" c");
-
-  display.display();
-
-  dac.setVoltage(dacOut, false);
-
-  delay(50);
-
-  display.clearDisplay();
-
-  if (dacOut++>4095) dacOut=0;
-
+  for (uint8_t x=0; x<LOOPDELAY; x++) {
+    delay(100);
+    ArduinoOTA.handle();
+  }
 } // end of main loop
