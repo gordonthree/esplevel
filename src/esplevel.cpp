@@ -21,24 +21,22 @@
 #define pinSDA 12 // i2c data pin
 #define pinSCL 13 // i2c clock oin
 
-ADXL345 accel(ADXL); // 0x53
-OneWire oneWire(DOWPIN); // 0x14 gpio14
+ADXL345 accel(ADXL); 
+OneWire oneWire(DOWPIN); 
 DallasTemperature ds18b20(&oneWire);
 
-#define serialDebug 0
+#define serialDebug 0 // flag for serial debugging commands
 
 #define min(X, Y) (((X)<(Y))?(X):(Y))
 
-//  I2C device address is 0 1 0 0   A2 A1 A0
-
-
+// #define WIFIPASSWORD "defined via build flag"
 const char* ssid = "Tell my WiFi I love her";
-const char* password = "2317239216";
+const char* password = WIFIPASSWORD;
 const char* mqtt_server = "mypi3";
-const char* myPub = "trailer/esplevel/msg";
-const char* myAccel = "trailer/esplevel/accel";
-const char* mySub = "trailer/esplevel/cmd";
-const char* clientid = "esplevel";
+const char* myPub = "trailer/esplevel/msg"; // general messages
+const char* myAccel = "trailer/esplevel/accel"; // accell data
+const char* mySub = "trailer/esplevel/cmd"; // general commands 
+const char* clientid = "esplevel"; // hostname
 
 uint16_t lastReconnectAttempt = 0;
 uint16_t lastMsg = 0;
@@ -198,7 +196,7 @@ void setup_wifi() {
   if (serialDebug) Serial.println("OTA is ready");
 }
 
-void callback(char* topic, byte* payload, unsigned int length) {
+void callback(char* topic, byte* payload, unsigned int length) { // handle incoming MQTT messages
   if (serialDebug) Serial.print("Message arrived [");
   if (serialDebug) Serial.print(topic);
   if (serialDebug) Serial.print("] ");
@@ -208,7 +206,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   if (serialDebug) Serial.println();
 }
 
-boolean reconnect() {
+boolean reconnect() { // connect or reconnect to MQTT server
   if (client.connect("arduinoClient")) {
     // Attempt to connect
     if (client.connect(clientid)) {
@@ -225,7 +223,6 @@ boolean reconnect() {
 void setup() {
   if (serialDebug) Serial.begin(115200);
 
-
   if (HASDOW) {
     pinMode(DOWPWR, OUTPUT);
     // turn on the one wire device
@@ -233,18 +230,17 @@ void setup() {
     ds18b20.begin(); // start one wire temp probe
   }
 
-
-  // iic.pins(0, 2); //on ESP-01 sda gpio0 scl gpio2
-  // iic.begin(0, 2);
-  Wire.begin(pinSDA, pinSCL);
+  Wire.begin(pinSDA, pinSCL); // setup i2c bus 
 
   setup_wifi();
-  i2c_scan();
+  // i2c_scan();
 
+  // setup MQTT
   lastReconnectAttempt = 0;
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
 
+  // setup NTP
   NTP.onNTPSyncEvent([](NTPSyncEvent_t error) {
       if (error) {
           if (serialDebug) Serial.print("Time Sync error: ");
@@ -260,10 +256,16 @@ void setup() {
 
   });
   NTP.begin("us.pool.ntp.org", 1, true);
-  NTP.setInterval(600);
-  NTP.setTimeZone(-5);
-  NTP.setDayLight(true);
+  NTP.setInterval(600); // reset time every 10 minutes
+  NTP.setTimeZone(-5); // eastern US time
+  NTP.setDayLight(true); // daylight savings
 
+  // setup accel
+  accel.writeRange(ADXL345_RANGE_16G); // 16g provides the highest resolution (13 bits)
+  accel.writeRate(ADXL345_RATE_200HZ); // sampling rate
+  accel.start();
+
+  /*
   byte deviceID = accel.readDeviceID();
   if (deviceID != 0) {
     if (serialDebug) Serial.print("ADXL345 Found at 0x");
@@ -272,16 +274,13 @@ void setup() {
   } else {
     if (serialDebug) Serial.println("ADXL345 read device failed");
   }
-
-  accel.writeRange(ADXL345_RANGE_2G);
-  accel.writeRate(ADXL345_RATE_200HZ);
-  accel.start();
+  */
  }
 
 void loop() {
-  ArduinoOTA.handle();
+  ArduinoOTA.handle(); // check for OTA updates
 
-  if (!client.connected()) {
+  if (!client.connected()) { // check on MQTT connection
     if (serialDebug) Serial.println("MQTT connect failed!");
     long now = millis();
     if (now - lastReconnectAttempt > 5000) {
@@ -293,10 +292,10 @@ void loop() {
     }
   } else {
     // Client connected
-    client.loop();
+    client.loop(); // check for MQTT messages
   }
 
-  if (accel.update()) {
+  if (accel.update()) { // read new data from accel, send it over MQTT
     adxlX = accel.getRawX();
     adxlY = accel.getRawY();
     adxlZ = accel.getRawZ();
@@ -304,7 +303,7 @@ void loop() {
     client.publish(myAccel, msg, true);
   }
 
-  if (HASDOW) {
+  if (HASDOW) { // if DOW available, get temperature
     ds18b20.requestTemperatures();
     byte retry = 5;
     float temp=0.0;
@@ -313,9 +312,10 @@ void loop() {
       retry--;
       delay(2);
     } while (retry > 0 && (temp == 85.0 || temp == (-127.0)));
+    // send over mqtt eventually
   }
 
-  for (uint8_t x=0; x<LOOPDELAY; x++) {
+  for (uint8_t x=0; x<LOOPDELAY; x++) { // pause for a few, checking for OTA updates
     delay(100);
     ArduinoOTA.handle();
   }
