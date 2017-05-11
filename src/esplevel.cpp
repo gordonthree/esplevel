@@ -31,7 +31,7 @@ DallasTemperature ds18b20(&oneWire);
 
 // #define WIFIPASSWORD "defined via build flag"
 const char* ssid = "Tell my WiFi I love her";
-const char* password = WIFIPASSWORD;
+const char* password = _WIFIPASSWORD;
 const char* mqtt_server = "mypi3";
 const char* myPub = "trailer/esplevel/msg"; // general messages
 const char* myAccel = "trailer/esplevel/accel"; // accell data
