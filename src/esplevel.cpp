@@ -273,7 +273,7 @@ void setup() {
     if (serialDebug) Serial.println("ADXL345 read device failed");
   }
 
-  accel.writeRange(ADXL345_RANGE_16G);
+  accel.writeRange(ADXL345_RANGE_2G);
   accel.writeRate(ADXL345_RATE_200HZ);
   accel.start();
  }
