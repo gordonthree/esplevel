@@ -25,8 +25,8 @@ ADXL345 accel(ADXL);
 OneWire oneWire(DOWPIN);
 DallasTemperature ds18b20(&oneWire);
 WiFiClient espClient;
-PubSubClient mqtt(espClient);
-WebSocketsServer webSocket = WebSocketsServer(81);
+PubSubClient mqtt(espClient); // attach mqtt client to the wifi stack
+WebSocketsServer webSocket = WebSocketsServer(81); // websocket server will listen on port 81
 
 #define serialDebug 0 // flag for serial debugging commands
 
@@ -79,7 +79,7 @@ char* cleanStr(const char* _str) {
   return str; // return printable results
 }
 
-void wsSend(const char* _str) {
+void wsSend(const char* _str) { // broadcast message to connected websock clients
   if (sizeof(_str)<=1) return; // don't send blank messages
   if (wsConcount>0) {
     for (int x=0; x<wsConcount; x++) {
@@ -88,19 +88,19 @@ void wsSend(const char* _str) {
   }
 }
 
-void wsSendTime(const char* msg, time_t mytime) {
+void wsSendTime(const char* msg, time_t mytime) { // combine char array and time integer for websock
   memset(str,0,sizeof(str));
   sprintf(str, msg, mytime);
   wsSend(str);
 }
 
-void wsSendMsg(const char* msg, char* msg2) {
+void wsSendMsg(const char* msg, char* msg2) { // combine two char array to send to websock
   memset(str,0,sizeof(str));
   sprintf(str, msg, msg2);
   wsSend(str);
 }
 
-void i2c_wordwrite(int address, int cmd, int theWord) {
+void i2c_wordwrite(int address, int cmd, int theWord) { // write a two-byte word to i2c bus
   //  Send output register address
   Wire.beginTransmission(address);
   Wire.write(cmd); // control register
@@ -109,7 +109,7 @@ void i2c_wordwrite(int address, int cmd, int theWord) {
   Wire.endTransmission();
 }
 
-void i2c_write(int address, int cmd, int data) {
+void i2c_write(int address, int cmd, int data) { // write a byte to i2c bus
   //  Send output register address
   Wire.beginTransmission(address);
   Wire.write(cmd); // control register
@@ -117,7 +117,7 @@ void i2c_write(int address, int cmd, int data) {
   Wire.endTransmission();
 }
 
-uint16_t i2c_wordread(int address, int cmd) {
+uint16_t i2c_wordread(int address, int cmd) { // read two byte word from i2c bus
   int result;
   int xlo, xhi;
 
@@ -135,7 +135,7 @@ uint16_t i2c_wordread(int address, int cmd) {
   return result;
 }
 
-uint8_t i2c_read(byte devaddr, byte regaddr) {
+uint8_t i2c_read(byte devaddr, byte regaddr) { // read single byte from i2c bus
 
   uint8_t result = 0;
   size_t readcnt = 1;
@@ -149,7 +149,7 @@ uint8_t i2c_read(byte devaddr, byte regaddr) {
   return result;
 }
 
-void i2c_readbytes(byte address, byte cmd, byte bytecnt) {
+void i2c_readbytes(byte address, byte cmd, byte bytecnt) { // read multiple single bytes from i2c bus
 
   Wire.beginTransmission(address);
   Wire.write(cmd); // control register
@@ -162,7 +162,7 @@ void i2c_readbytes(byte address, byte cmd, byte bytecnt) {
 }
 
 
-void i2c_scan() {
+void i2c_scan() { // scan entire i2c address space for devices
   byte error, address;
   int nDevices;
 
@@ -189,7 +189,7 @@ void i2c_scan() {
 
 }
 
-void handleMsg(char* cmdStr) { // handle commands from mqtt broker
+void handleMsg(char* cmdStr) { // handle commands from mqtt or websocket
   // using c string routines instead of Arduino String routines ... a lot faster
   char* cmdTxt = strtok(cmdStr, "=");
   char* cmdVal = strtok(NULL, "=");
@@ -199,7 +199,7 @@ void handleMsg(char* cmdStr) { // handle commands from mqtt broker
   else if (strcmp(cmdTxt, "gettime")==0) getTime = true;
 }
 
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) { // handle websocket events
   switch(type) {
       case WStype_DISCONNECTED:
           //USE_SERIAL.printf("[%u] Disconnected!\n", num);
@@ -244,7 +244,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
   }
 }
 
-void mqttCallback(char* topic, uint8_t* payload, uint16_t len) {
+void mqttCallback(char* topic, uint8_t* payload, uint16_t len) { // handle MQTT events
   skipSleep=true; // don't go to sleep if we receive mqtt message
   char tmp[200];
   strncpy(tmp, (char*)payload, len);
@@ -252,7 +252,7 @@ void mqttCallback(char* topic, uint8_t* payload, uint16_t len) {
   handleMsg(tmp);
 }
 
-void setup_wifi() {
+void setup_wifi() { // setup wifi and network stuff
   delay(10);
   // We start by connecting to a WiFi network
   if (serialDebug) Serial.println();
@@ -316,7 +316,7 @@ boolean mqttReconnect() { // connect or reconnect to MQTT server
   return mqtt.connected();
 }
 
-void setup() {
+void setup() { // setup stuff and things on the micro
   if (serialDebug) Serial.begin(115200);
 
   if (HASDOW) {
@@ -418,13 +418,13 @@ void doAccel() { // read accel store in global array
   sprintf(msgAccel, "x=%d,y=%d,z=%d", adxlX, adxlY, adxlZ);
 }
 
-void doRSSI() {
+void doRSSI() { // store RSSI in global char array
   int16_t rssi = WiFi.RSSI();
   memset(msgRSSI,0,sizeof(msgRSSI));
   sprintf(msgRSSI, "%d", rssi);
 }
 
-void doTout() {
+void doTout() { // store DOW temperature in char array
   String vStr;
   if (!HASDOW) return;
 
@@ -471,15 +471,17 @@ void loop() {
     mqtt.loop(); // check for MQTT messages
   }
 
+  // collect data
   if (hasTout) doTout();
   if (hasRSSI) doRSSI();
 
+  // transmit data via mqtt
   if (useMQTT) mqttData();
 
   for (uint8_t x=0; x<LOOPDELAY; x++) { // pause for a few, checking for OTA updates
-    if (hasAccel) doAccel();
-    if (wsConcount>0) wsData();
+    if (hasAccel) doAccel(); // collect accelerometer data
+    if (wsConcount>0) wsData(); // transmit data to connected websocket clients
     delay(100);
-    ArduinoOTA.handle();
+    ArduinoOTA.handle(); 
   }
 } // end of main loop
