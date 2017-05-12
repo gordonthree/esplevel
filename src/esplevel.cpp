@@ -13,6 +13,8 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
+#include <WiFiSETUP.h>
+
 #define ADXL 0x53 // i2c address for accel
 
 #define HASDOW 0 // device has 1-wire device attached
@@ -21,8 +23,8 @@
 #define pinSDA 12 // i2c data pin
 #define pinSCL 13 // i2c clock oin
 
-ADXL345 accel(ADXL); 
-OneWire oneWire(DOWPIN); 
+ADXL345 accel(ADXL);
+OneWire oneWire(DOWPIN);
 DallasTemperature ds18b20(&oneWire);
 
 #define serialDebug 0 // flag for serial debugging commands
@@ -30,12 +32,12 @@ DallasTemperature ds18b20(&oneWire);
 #define min(X, Y) (((X)<(Y))?(X):(Y))
 
 // #define WIFIPASSWORD "defined via build flag"
-const char* ssid = "Tell my WiFi I love her";
-const char* password = _WIFIPASSWORD;
+// const char* ssid = WIFISSID;
+// const char* password = WIFIPASSWORD;
 const char* mqtt_server = "mypi3";
 const char* myPub = "trailer/esplevel/msg"; // general messages
 const char* myAccel = "trailer/esplevel/accel"; // accell data
-const char* mySub = "trailer/esplevel/cmd"; // general commands 
+const char* mySub = "trailer/esplevel/cmd"; // general commands
 const char* clientid = "esplevel"; // hostname
 
 uint16_t lastReconnectAttempt = 0;
@@ -70,7 +72,7 @@ void i2c_write(int address, int cmd, int data) {
   Wire.endTransmission();
 }
 
-int i2c_wordread(int address, int cmd) {
+uint16_t i2c_wordread(int address, int cmd) {
   int result;
   int xlo, xhi;
 
@@ -88,16 +90,15 @@ int i2c_wordread(int address, int cmd) {
   return result;
 }
 
-byte i2c_read(byte devaddr, byte regaddr) {
+uint8_t i2c_read(byte devaddr, byte regaddr) {
 
-  byte result = 0;
-
+  uint8_t result = 0;
+  size_t readcnt = 1;
   Wire.beginTransmission(devaddr);
   Wire.write(regaddr); // control register
   Wire.endTransmission();
 
-  int readbytes = Wire.requestFrom(devaddr, 1, true); // request cnt bytes
-
+  uint8_t readbytes = Wire.requestFrom(devaddr, readcnt, (bool)true); // request cnt bytes
   result  = Wire.read();
 
   return result;
@@ -150,9 +151,9 @@ void setup_wifi() {
   // We start by connecting to a WiFi network
   if (serialDebug) Serial.println();
   if (serialDebug) Serial.print("Connecting to ");
-  if (serialDebug) Serial.println(ssid);
+  if (serialDebug) Serial.println(WIFISSID);
 
-  WiFi.begin(ssid, password);
+  WiFi.begin(WIFISSID, WIFIPASSWORD);
 
   while (WiFi.waitForConnectResult() != WL_CONNECTED) {
     if (serialDebug) Serial.println("Connection Failed! Rebooting...");
@@ -230,7 +231,7 @@ void setup() {
     ds18b20.begin(); // start one wire temp probe
   }
 
-  Wire.begin(pinSDA, pinSCL); // setup i2c bus 
+  Wire.begin(pinSDA, pinSCL); // setup i2c bus
 
   setup_wifi();
   // i2c_scan();
