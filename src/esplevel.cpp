@@ -36,9 +36,12 @@ PubSubClient mqtt(espClient);
 // const char* ssid = WIFISSID;
 // const char* password = WIFIPASSWORD;
 const char* mqtt_server = "mypi3";
-const char* mqttPub = "trailer/esplevel/msg"; // general messages
-const char* mqttAccel = "trailer/esplevel/accel"; // accell data
+const char* mqttPub = "trailer/msg"; // general messages
+const char* mqttAccel = "trailer/esplevel/accelerometer"; // accell data
 const char* mqttSub = "trailer/esplevel/cmd"; // general commands
+const char* mqttTemp = "trailer/esplevel/temperature"; // general commands
+const char* mqttRSSI = "trailer/esplevel/rssi"; // general commands
+const char* mqttEpoch = "trailer/esplevel/epoch"; // general commands
 const char* nodeName = "esplevel"; // hostname
 
 uint16_t lastReconnectAttempt = 0;
@@ -228,7 +231,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
   }
 }
 
-void mqttcallback(char* topic, byte* payload, unsigned int len) {
+void mqttCallback(char* topic, uint8_t* payload, uint16_t len) {
   skipSleep=true; // don't go to sleep if we receive mqtt message
   char tmp[200];
   strncpy(tmp, (char*)payload, len);
@@ -237,7 +240,6 @@ void mqttcallback(char* topic, byte* payload, unsigned int len) {
 }
 
 void setup_wifi() {
-
   delay(10);
   // We start by connecting to a WiFi network
   if (serialDebug) Serial.println();
@@ -288,17 +290,15 @@ void setup_wifi() {
   if (serialDebug) Serial.println("OTA is ready");
 }
 
-boolean reconnect() { // connect or reconnect to MQTT server
+boolean mqttReconnect() { // connect or reconnect to MQTT server
   if (mqtt.connect(nodeName)) {
-    // Attempt to connect
-    if (mqtt.connect(nodeName)) {
-      if (serialDebug) Serial.println("Establish MQTT connection.");
-      // Once connected, publish an announcement...
-      mqtt.publish(mqttPub, "hello world", true);
-      // ... and resubscribe
-      mqtt.subscribe(mqttSub);
-      useMQTT = true;
-    }
+    if (serialDebug) Serial.println("Established MQTT connection.");
+    // Once connected, publish an announcement...
+    sprintf(msg,"Hello from %s", nodeName);
+    mqtt.publish(mqttPub, msg);
+    // ... and resubscribe
+    mqtt.subscribe(mqttSub);
+    useMQTT = true;
   }
   return mqtt.connected();
 }
@@ -322,7 +322,7 @@ void setup() {
   // setup MQTT
   lastReconnectAttempt = 0;
   mqtt.setServer(mqtt_server, 1883);
-  mqtt.setCallback(mqttcallback);
+  mqtt.setCallback(mqttCallback);
 
   // setup NTP
   NTP.onNTPSyncEvent([](NTPSyncEvent_t error) {
@@ -373,49 +373,48 @@ void setup() {
    wsSend(str);
  }
 
+ void mqttSendTime(time_t _time) {
+   if (!mqtt.connected()) return; // bail out if there's no mqtt connection
+   memset(str,0,sizeof(str));
+   sprintf(str,"%d", _time);
+   mqtt.publish(mqttEpoch, str);
+ }
+
  void wsData() { // send some websockets data if client is connected
    if (wsConcount<=0) return;
 
-   if (timeStatus() == timeSet) wsSendTime("time=%d",now()); // send time to ws client
-
+   if (timeStatus() == timeSet) wsSendTime("epoch=%d",now()); // send time to ws client
    if (hasAccel) wsSend(msgAccel);
-
    if (hasTout) wsSend(msgTemp); // send temperature
    if (hasRSSI) wsSend(msgRSSI); // send rssi info
  }
 
- void mqttSendTime(time_t _time) {
-   if (!mqtt.connected()) return; // bail out if there's no mqtt connection
-   memset(str,0,sizeof(str));
-   sprintf(str,"time=%d", _time);
-   mqtt.publish(mqttPub, str);
- }
-
  void mqttData() { // send mqtt messages as required
    if (!mqtt.connected()) return; // bail out if there's no mqtt connection
-   if (hasTout) mqtt.publish(mqttPub, msgTemp);
-   if (hasAccel)  mqtt.publish(mqttAccel, msgTemp);
 
    if (timeStatus() == timeSet) mqttSendTime(now());
-
-   if (hasRSSI) mqtt.publish(mqttPub, msgRSSI);
+   if (hasAccel) mqtt.publish(mqttAccel, msgAccel);
+   if (hasTout) mqtt.publish(mqttTemp, msgTemp);
+   if (hasRSSI) mqtt.publish(mqttRSSI, msgRSSI);
  }
 
 void doAccel() { // read accel store in global array
-  memset(msgTemp,0,sizeof(msgAccel));
+  memset(msgAccel,0,sizeof(msgAccel));
   if (accel.update()) { // read new data from accel, send it over MQTT
     adxlX = accel.getRawX();
     adxlY = accel.getRawY();
     adxlZ = accel.getRawZ();
-    sprintf(msgAccel, "x=%d,y=%d,z=%d", adxlX, adxlY, adxlZ);
     // mqtt.publish(myAccel, msgAccel, true);
+  } else {
+    adxlX = 0; adxlY = 0; adxlZ = 0;
   }
+  sprintf(msgAccel, "x=%d,y=%d,z=%d", adxlX, adxlY, adxlZ);
 }
 
 void doRSSI() {
-  uint16_t rssi = WiFi.RSSI();
+  int16_t rssi = WiFi.RSSI();
   memset(msgRSSI,0,sizeof(msgRSSI));
-  sprintf(msgRSSI, "rssi=%d", rssi);
+  sprintf(msgRSSI, "%d", rssi);
 }
 
 void doTout() {
@@ -441,7 +440,7 @@ void doTout() {
     digitalWrite(DOWPWR, LOW); // ow off
   }
 
-  vStr = String("temp=") + String(temp,4);
+  vStr = String(temp,4);
   vStr.toCharArray(msgTemp, vStr.length()+1);
 }
 
@@ -455,7 +454,7 @@ void loop() {
     if (now - lastReconnectAttempt > 5000) {
       lastReconnectAttempt = now;
       // Attempt to reconnect
-      if (reconnect()) {
+      if (mqttReconnect()) {
         lastReconnectAttempt = 0;
       }
     }
@@ -466,6 +465,7 @@ void loop() {
 
   if (hasAccel) doAccel();
   if (hasTout) doTout();
+  if (hasRSSI) doRSSI();
 
   if (wsConcount>0) wsData();
   if (useMQTT) mqttData();
