@@ -2,4 +2,15 @@
 
 WiFi enabled 3-axis accelerometer. Intended to be installed in my RV trailer so I can check how level my parking spot is from my cell phone.
 
-![proto board image](https://lh3.googleusercontent.com/-04vkmL9Hd68/WRPQQccE1pI/AAAAAAAArmE/TGt3kdloTukrbr39BGseXoIPq0I3QAsJgCJoC/w530-h419-p-rw/IMG_20170510_223916451.jpg)
+![proto board image](http://i.imgur.com/Q2TS3Iel.jpg)
+
+Progress so far:
+
+added more MQTT topics, now reporting RSSI and also epoch timestamp
+
+same data is available via websocket server on port 81 
+
+To do yet:
+
+Need to an HTML + Javascript client page and figure out how to do the graphical representation of the accelerometer data
+
