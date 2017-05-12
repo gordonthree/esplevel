@@ -66,19 +66,6 @@ uint8_t LOOPDELAY = 5; // time delay between updates (in 100ms chunks)
 uint8_t wsConcount = 0; // counter for websocket connections
 uint8_t newWScon = 0;
 
-char* cleanStr(const char* _str) {
-  int x=0, i=0;
-  char c;
-  memset(str,0,sizeof(str)); // zero out array
-
-  while (((c = _str[i++]) != '\0') && (x<59)) { // read array until we hit a null
-    if (isPrintable(c)) str[x++] = c; // exclude character that are not alphaNumeric
-  }
-  str[x] = '\0'; // null terminate
-
-  return str; // return printable results
-}
-
 void wsSend(const char* _str) { // broadcast message to connected websock clients
   if (sizeof(_str)<=1) return; // don't send blank messages
   if (wsConcount>0) {
@@ -90,77 +77,15 @@ void wsSend(const char* _str) { // broadcast message to connected websock client
 
 void wsSendTime(const char* msg, time_t mytime) { // combine char array and time integer for websock
   memset(str,0,sizeof(str));
-  sprintf(str, msg, mytime);
+  sprintf(str, "%s%u", msg, mytime);
   wsSend(str);
 }
 
 void wsSendMsg(const char* msg, char* msg2) { // combine two char array to send to websock
   memset(str,0,sizeof(str));
-  sprintf(str, msg, msg2);
+  sprintf(str, "%s%s", msg, msg2);
   wsSend(str);
 }
-
-void i2c_wordwrite(int address, int cmd, int theWord) { // write a two-byte word to i2c bus
-  //  Send output register address
-  Wire.beginTransmission(address);
-  Wire.write(cmd); // control register
-  Wire.write(highByte(theWord));  //  high byte
-  Wire.write(lowByte(theWord));  //  send low byte of word data
-  Wire.endTransmission();
-}
-
-void i2c_write(int address, int cmd, int data) { // write a byte to i2c bus
-  //  Send output register address
-  Wire.beginTransmission(address);
-  Wire.write(cmd); // control register
-  Wire.write(data);  //  send byte data
-  Wire.endTransmission();
-}
-
-uint16_t i2c_wordread(int address, int cmd) { // read two byte word from i2c bus
-  int result;
-  int xlo, xhi;
-
-  Wire.beginTransmission(address);
-  Wire.write(cmd); // control register
-  Wire.endTransmission();
-
-  int readbytes = Wire.requestFrom(address, 2); // request two bytes
-  xhi = Wire.read();
-  xlo = Wire.read();
-
-  result = xhi << 8; // hi byte
-  result = result | xlo; // add in the low byte
-
-  return result;
-}
-
-uint8_t i2c_read(byte devaddr, byte regaddr) { // read single byte from i2c bus
-
-  uint8_t result = 0;
-  size_t readcnt = 1;
-  Wire.beginTransmission(devaddr);
-  Wire.write(regaddr); // control register
-  Wire.endTransmission();
-
-  uint8_t readbytes = Wire.requestFrom(devaddr, readcnt, (bool)true); // request cnt bytes
-  result  = Wire.read();
-
-  return result;
-}
-
-void i2c_readbytes(byte address, byte cmd, byte bytecnt) { // read multiple single bytes from i2c bus
-
-  Wire.beginTransmission(address);
-  Wire.write(cmd); // control register
-  Wire.endTransmission();
-
-  Wire.requestFrom(address, bytecnt); // request cnt bytes
-  for (byte x = 0; x < bytecnt; x++) {
-    i2cbuff[x] = Wire.read();
-  }
-}
-
 
 void i2c_scan() { // scan entire i2c address space for devices
   byte error, address;
@@ -186,7 +111,6 @@ void i2c_scan() { // scan entire i2c address space for devices
       nDevices++;
     }
   }
-
 }
 
 void handleMsg(char* cmdStr) { // handle commands from mqtt or websocket
@@ -390,10 +314,10 @@ void setup() { // setup stuff and things on the micro
  void wsData() { // send some websockets data if client is connected
    if (wsConcount<=0) return;
 
-   if (timeStatus() == timeSet) wsSendTime("epoch=%d",now()); // send time to ws client
-   if (hasAccel) wsSendMsg("accelerometer=%s", msgAccel);
-   if (hasTout) wsSendMsg("temperature=%s", msgTemp); // send temperature
-   if (hasRSSI) wsSendMsg("rssi=%s", msgRSSI); // send rssi info
+   // if (timeStatus() == timeSet) wsSendTime("epoch=",now()); // send time to ws client
+   if (hasAccel) wsSendMsg("accelerometer=", msgAccel);
+   // if (hasTout) wsSendMsg("temperature=", msgTemp); // send temperature
+   // if (hasRSSI) wsSendMsg("rssi=", msgRSSI); // send rssi info
  }
 
  void mqttData() { // send mqtt messages as required
@@ -482,6 +406,6 @@ void loop() {
     if (hasAccel) doAccel(); // collect accelerometer data
     if (wsConcount>0) wsData(); // transmit data to connected websocket clients
     delay(100);
-    ArduinoOTA.handle(); 
+    ArduinoOTA.handle();
   }
 } // end of main loop
