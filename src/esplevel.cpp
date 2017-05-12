@@ -24,9 +24,9 @@
 ADXL345 accel(ADXL);
 OneWire oneWire(DOWPIN);
 DallasTemperature ds18b20(&oneWire);
-WebSocketsServer webSocket = WebSocketsServer(81);
 WiFiClient espClient;
 PubSubClient mqtt(espClient);
+WebSocketsServer webSocket = WebSocketsServer(81);
 
 #define serialDebug 0 // flag for serial debugging commands
 
@@ -36,7 +36,8 @@ PubSubClient mqtt(espClient);
 // const char* ssid = WIFISSID;
 // const char* password = WIFIPASSWORD;
 const char* mqtt_server = "mypi3";
-const char* mqttPub = "trailer/msg"; // general messages
+const char* mqttAnnounce = "trailer/msg"; // general messages
+const char* mqttPub = "trailer/esplevel/msg"; // general messages
 const char* mqttAccel = "trailer/esplevel/accelerometer"; // accell data
 const char* mqttSub = "trailer/esplevel/cmd"; // general commands
 const char* mqttTemp = "trailer/esplevel/temperature"; // general commands
@@ -85,6 +86,18 @@ void wsSend(const char* _str) {
       webSocket.sendTXT(x, _str);
     }
   }
+}
+
+void wsSendTime(const char* msg, time_t mytime) {
+  memset(str,0,sizeof(str));
+  sprintf(str, msg, mytime);
+  wsSend(str);
+}
+
+void wsSendMsg(const char* msg, char* msg2) {
+  memset(str,0,sizeof(str));
+  sprintf(str, msg, msg2);
+  wsSend(str);
 }
 
 void i2c_wordwrite(int address, int cmd, int theWord) {
@@ -223,7 +236,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
           break;
       case WStype_BIN:
          // USE_SERIAL.printf("[%u] get binary lenght: %u\n", num, length);
-          hexdump(payload, length);
+          // hexdump(payload, length);
 
           // send message to client
           // webSocket.sendBIN(num, payload, lenght);
@@ -295,7 +308,7 @@ boolean mqttReconnect() { // connect or reconnect to MQTT server
     if (serialDebug) Serial.println("Established MQTT connection.");
     // Once connected, publish an announcement...
     sprintf(msg,"Hello from %s", nodeName);
-    mqtt.publish(mqttPub, msg);
+    mqtt.publish(mqttAnnounce, msg);
     // ... and resubscribe
     mqtt.subscribe(mqttSub);
     useMQTT = true;
@@ -367,12 +380,6 @@ void setup() {
   }
  }
 
- void wsSendTime(const char* msg, time_t mytime) {
-   memset(str,0,sizeof(str));
-   sprintf(str, msg, mytime);
-   wsSend(str);
- }
-
  void mqttSendTime(time_t _time) {
    if (!mqtt.connected()) return; // bail out if there's no mqtt connection
    memset(str,0,sizeof(str));
@@ -384,9 +391,9 @@ void setup() {
    if (wsConcount<=0) return;
 
    if (timeStatus() == timeSet) wsSendTime("epoch=%d",now()); // send time to ws client
-   if (hasAccel) wsSend(msgAccel);
-   if (hasTout) wsSend(msgTemp); // send temperature
-   if (hasRSSI) wsSend(msgRSSI); // send rssi info
+   if (hasAccel) wsSendMsg("accelerometer=%s", msgAccel);
+   if (hasTout) wsSendMsg("temperature=%s", msgTemp); // send temperature
+   if (hasRSSI) wsSendMsg("rssi=%s", msgRSSI); // send rssi info
  }
 
  void mqttData() { // send mqtt messages as required
@@ -446,6 +453,7 @@ void doTout() {
 
 void loop() {
   ArduinoOTA.handle(); // check for OTA updates
+  webSocket.loop();
 
   if (!mqtt.connected()) { // check on MQTT connection
     useMQTT = false;
@@ -463,14 +471,14 @@ void loop() {
     mqtt.loop(); // check for MQTT messages
   }
 
-  if (hasAccel) doAccel();
   if (hasTout) doTout();
   if (hasRSSI) doRSSI();
 
-  if (wsConcount>0) wsData();
   if (useMQTT) mqttData();
 
   for (uint8_t x=0; x<LOOPDELAY; x++) { // pause for a few, checking for OTA updates
+    if (hasAccel) doAccel();
+    if (wsConcount>0) wsData();
     delay(100);
     ArduinoOTA.handle();
   }
