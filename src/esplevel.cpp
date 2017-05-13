@@ -271,7 +271,7 @@ void setup() { // setup stuff and things on the micro
               if (serialDebug) Serial.println("Invalid NTP server address");
       }
       else {
-          if (serialDebug) Serial.print("Got NTP time: ");
+          if (serialDebug) Serial.print("NTP time: ");
           if (serialDebug) Serial.println(NTP.getTimeDateString(NTP.getLastNTPSync()));
       }
 
@@ -295,8 +295,7 @@ void setup() { // setup stuff and things on the micro
   byte deviceID = accel.readDeviceID();
   if (deviceID != 0) {
     if (serialDebug) Serial.print("ADXL345 Found at 0x");
-    if (serialDebug) Serial.print(deviceID, HEX);
-    if (serialDebug) Serial.println("");
+    if (serialDebug) Serial.println(deviceID, HEX);
     hasAccel = true; // we have an accel!
   } else {
     if (serialDebug) Serial.println("ADXL345 read device failed");
