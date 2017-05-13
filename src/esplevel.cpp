@@ -135,6 +135,22 @@ void handleMsg(char* cmdStr) { // handle commands from mqtt or websocket
   else if (strcmp(cmdTxt, "gettime")==0) getTime = true;
 }
 
+void wsFSinfo() {
+  memset(str,0,sizeof(str));
+
+  FSInfo fs_info;
+  if (SPIFFS.info(fs_info)) {
+    sprintf(str,"fs free %d", (fs_info.totalBytes - fs_info.usedBytes));
+
+  } else {
+    sprintf(str,"fs error");
+    SPIFFS.format();
+  };
+
+  wsSend(str);
+
+}
+
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) { // handle websocket events
   switch(type) {
       case WStype_DISCONNECTED:
@@ -166,6 +182,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
               wsConcount++;
               sprintf(str,"ws Connect count=%d",wsConcount);
               if (useMQTT) mqtt.publish(mqttPub,str);
+              wsFSinfo(); // send filesystem info to websock client
           }
           break;
       case WStype_TEXT:
@@ -327,7 +344,6 @@ void mqttFSinfo() {
   mqtt.publish(mqttPub, str);
 
 }
-
 
 void setup() { // setup stuff and things on the micro
   if (serialDebug) Serial.begin(115200);
