@@ -11,7 +11,7 @@
 #include <DallasTemperature.h>
 #include <WebSocketsServer.h>
 #include <Hash.h>
-#include <WiFiSETUP.h>
+#include <WiFiSETUP.h> // private wifi network details defined here
 
 #define ADXL 0x53 // i2c address for accel
 
