@@ -10,9 +10,11 @@ added more MQTT topics, now reporting RSSI and also epoch timestamp
 
 same data is available via websocket server on port 81 
 
+basic html websock client is now operational!
+
 To do yet:
 
-Need to an HTML + Javascript client page and figure out how to do the graphical representation of the accelerometer data
+Need to improve html client to better emulate a spirt level.
 
 Trouble:
 
