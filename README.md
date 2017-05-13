@@ -14,3 +14,6 @@ To do yet:
 
 Need to an HTML + Javascript client page and figure out how to do the graphical representation of the accelerometer data
 
+Trouble:
+
+This PlatformIO project doesn't seem to compile on other machines, complaining about a missing file WiFiSETUP.h ... I'm not sure where that dependency is coming from, I've gone through all the libraries I'm using and it's not turning up.
