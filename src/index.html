@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+    <head>
+      <title>ESP Level</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="icon" type="image/png" href="favicon.png">
+        <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+        <script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+        <script type="text/javascript" src="smoothie.js"></script>
+        <script type="text/javascript" src="myscript.js"></script>
+    </head>
+    <body id="mainpage">
+        <div data-role="page" id="pageone">
+            <div data-role="panel" data-display="overlay" id="diagPanel" data-swipe-close="true" data-dismissible="true">
+                <h2>
+                    Diagnostic Log
+                </h2>
+                <ul data-role="listview" id="diagList">
+                    <li>Newest entry first</li>
+                </ul>
+            </div>
+            <div data-role="header">
+                <h1 id="headerText">
+                    Not Connected!
+                </h1>
+            </div>
+            <div data-role="main" class="ui-content">
+                <label for="xaxis" id="lblxaxis">X Axis</label>
+                    <input type="range" name="xaxis" id="xaxis" class="numbox" min="-100" max="100" value="0">
+
+                <label for="yaxis" id="lblyaxis">Y Axis</label>
+                    <input type="range" name="yaxis" id="yaxis" class="numbox" min="-100" max="100" value="0">
+
+                <label for="zaxis" id="lblzaxis">Z Axis</label>
+                    <input type="range" name="zaxis" id="zaxis" class="numbox" min="-300" max="300" value="0">
+
+                <div id="gChart" class="ui-field-contain">
+                    <canvas id="chart" width="800px" height="200px"></canvas>
+                </div>
+                <a href="#diagPanel" id="logbtn" class="ui-btn ui-btn-inline ui-corner-all ui-shadow">Diagnostic Log</a>
+
+            </div>
+            <div data-role="footer">
+                <h2 id="footerText">
+                    Not Connected!
+                </h2>
+                <h2 id="footer2">
+                </h2>
+            </div>
+        </div>
+    </body>
+</html>

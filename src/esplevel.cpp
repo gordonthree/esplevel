@@ -71,7 +71,6 @@ bool hasRSSI = true; // report our signal strength
 bool setPolo = false; bool doReset = false; bool getTime = false;
 bool useMQTT = false; // flag for mqtt available
 bool skipSleep = false; // flag for mqtt available
-int16_t adxlX = 0; int16_t adxlY = 0; int16_t adxlZ = 0; // raw accel storages
 uint8_t LOOPDELAY = 5; // time delay between updates (in 100ms chunks)
 uint8_t wsConcount = 0; // counter for websocket connections
 uint8_t newWScon = 0;
@@ -153,7 +152,10 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
               webSocket.sendTXT(num, str);
               //webSocket.sendTXT(num, mqttPub);
               //webSocket.sendTXT(num, mqttsub);
-              if (timeStatus() == timeSet) webSocket.sendTXT(num, "Time is set.");
+              if (timeStatus() == timeSet) {
+                webSocket.sendTXT(num, "Time is set.");
+                wsSendTime("epoch=",now());
+              }
               else webSocket.sendTXT(num, "Time not set.");
               //mqtt.publish(mqttPub, str);
               //wsSendlabels();
@@ -298,7 +300,7 @@ void setup() { // setup stuff and things on the micro
   webSocket.onEvent(webSocketEvent);
 
   // setup accel
-  accel.writeRange(ADXL345_RANGE_16G); // 16g provides the highest resolution (13 bits)
+  accel.writeRange(ADXL345_RANGE_2G); // 16g provides the highest resolution (13 bits)
   accel.writeRate(ADXL345_RATE_200HZ); // sampling rate
   accel.start();
 
@@ -323,7 +325,7 @@ void setup() { // setup stuff and things on the micro
  void wsData() { // send some websockets data if client is connected
    if (wsConcount<=0) return;
 
-   // if (timeStatus() == timeSet) wsSendTime("epoch=",now()); // send time to ws client
+   if (timeStatus() == timeSet) wsSendTime("epoch=",now()); // send time to ws client
    if (hasAccel) wsSendMsg("accelerometer=", msgAccel);
    // if (hasTout) wsSendMsg("temperature=", msgTemp); // send temperature
    // if (hasRSSI) wsSendMsg("rssi=", msgRSSI); // send rssi info
@@ -339,16 +341,23 @@ void setup() { // setup stuff and things on the micro
  }
 
 void doAccel() { // read accel store in global array
+  int16_t adxlX = 0; int16_t adxlY = 0; int16_t adxlZ = 0; // raw accel storages
   memset(msgAccel,0,sizeof(msgAccel));
-  if (accel.update()) { // read new data from accel, send it over MQTT
-    adxlX = accel.getRawX();
-    adxlY = accel.getRawY();
-    adxlZ = accel.getRawZ();
-    // mqtt.publish(myAccel, msgAccel, true);
-  } else {
-    adxlX = 0; adxlY = 0; adxlZ = 0;
+
+  for (uint8_t reps=0; reps<10; reps++) { // oversample
+    if (accel.update()) { // read new data from accel, send it over MQTT
+      adxlX += accel.getRawX();
+      adxlY += accel.getRawY();
+      adxlZ += accel.getRawZ();
+      // mqtt.publish(myAccel, msgAccel, true);
+    }
   }
-  sprintf(msgAccel, "x=%d,y=%d,z=%d", adxlX, adxlY, adxlZ);
+
+  adxlX = adxlX / 10;
+  adxlY = adxlY / 10;
+  adxlZ = adxlZ / 10;
+
+  sprintf(msgAccel, "%d,%d,%d", adxlX, adxlY, adxlZ);
 }
 
 void doRSSI() { // store RSSI in global char array

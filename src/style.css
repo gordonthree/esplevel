@@ -1,0 +1,35 @@
+body {
+    font-family:Arial, Helvetica, sans-serif;
+}
+#container{
+    border:5px solid grey;
+    margin:0 auto;
+    padding:10px;
+}
+#chatLog{
+    padding:5px;
+    height:400px;
+    border:1px solid black;
+    overflow: auto;
+}
+#chatLog p {
+    margin:0;
+}
+.event {
+    color:#999;
+}
+.warning{
+    font-weight:bold;
+    color:#CCC;
+}
+.numbox{
+    width:100px;
+    border:1px solid black;
+    margin: 2px;
+    /* padding:5px; */
+}
+.vacform{
+    /*width: 80%;
+    display: flex;
+    justify-content: space-between; */
+}
