@@ -11,7 +11,17 @@
 #include <DallasTemperature.h>
 #include <WebSocketsServer.h>
 #include <Hash.h>
+
+// WiFi network setup - put your password and network name before,
+// or include them in a file named WiFiSETUP.h
+
+// #define WIFIPASSWORD "xxxxxxxxxx" // your WiFi password
+// #define WIFISSID "Your SSID here" // your WiFi network
+
+#ifndef WIFIPASSWORD // password not defined, load it from external file
 #include <WiFiSETUP.h> // private wifi network details defined here
+#endif
+
 
 #define ADXL 0x53 // i2c address for accel
 
