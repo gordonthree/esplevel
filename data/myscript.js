@@ -10,7 +10,8 @@ $(document).on("pagebeforecreate",function(){
 });
 
 $(document).on("pagecreate",function() {
-      var hostName = "192.168.2.133"; // ip adress for ESP module
+      // var hostName = "192.168.2.133"; // ip adress for ESP module
+      var hostName = window.location.host; // get our address from the browser itself
       var nodeName;
       var sendUpdate=true;
       /*The user has WebSockets!!! */
