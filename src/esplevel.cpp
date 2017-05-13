@@ -230,7 +230,8 @@ void handleNotFound(){
     message += " NAME:"+httpd.argName(i) + "\n VALUE:" + httpd.arg(i) + "\n";
   }
   httpd.send(404, "text/plain", message);
-  // Serial.println(message);
+  if (serialDebug) Serial.print("httpd: ");
+  if (serialDebug) Serial.println(message);
 }
 
 void setup_wifi() { // setup wifi and network stuff
@@ -240,6 +241,8 @@ void setup_wifi() { // setup wifi and network stuff
   if (serialDebug) Serial.print("Connecting to ");
   if (serialDebug) Serial.println(WIFISSID);
 
+  String hostname(nodeName);
+  WiFi.hostname(hostname);
   WiFi.begin(WIFISSID, WIFIPASSWORD);
 
   while (WiFi.waitForConnectResult() != WL_CONNECTED) {
@@ -297,8 +300,38 @@ boolean mqttReconnect() { // connect or reconnect to MQTT server
   return mqtt.connected();
 }
 
+void mqttFSinfo() {
+  /* For reference
+    struct FSInfo {
+      size_t totalBytes;
+      size_t usedBytes;
+      size_t blockSize;
+      size_t pageSize;
+      size_t maxOpenFiles;
+      size_t maxPathLength;
+    }
+  */
+
+  if (!mqtt.connected()) return; // bail out if there's no mqtt connection
+  memset(str,0,sizeof(str));
+
+  FSInfo fs_info;
+  if (SPIFFS.info(fs_info)) {
+    sprintf(str,"filesystem free %d used %d total %d", (fs_info.totalBytes - fs_info.usedBytes), fs_info.usedBytes, fs_info.totalBytes);
+
+  } else {
+    sprintf(str,"filesystem not formatted, doing so now.");
+    SPIFFS.format();
+  };
+
+  mqtt.publish(mqttPub, str);
+
+}
+
+
 void setup() { // setup stuff and things on the micro
   if (serialDebug) Serial.begin(115200);
+  delay(500); // let micro settle after booting
 
   // start the filesystem
   SPIFFS.begin();
@@ -321,7 +354,7 @@ void setup() { // setup stuff and things on the micro
   //   the fully-qualified domain name is "esp8266.local"
   // - second argument is the IP address to advertise
   //   we send our IP address on the WiFi network
-  if (!MDNS.begin("esp8266")) {
+  if (!MDNS.begin(nodeName)) {
     if (serialDebug) Serial.println("Error setting up MDNS responder!");
   } else {
     if (serialDebug) Serial.println("mDNS responder started");
@@ -381,9 +414,12 @@ void setup() { // setup stuff and things on the micro
     if (serialDebug) Serial.println("ADXL345 read device failed");
     hasAccel = false;
   }
+  mqttReconnect(); // establish mqtt connection
+
+  mqttFSinfo(); // send fs info to mqtt broker
  }
 
- void mqttSendTime(time_t _time) {
+void mqttSendTime(time_t _time) {
    if (!mqtt.connected()) return; // bail out if there's no mqtt connection
    memset(str,0,sizeof(str));
    sprintf(str,"%d", _time);
@@ -463,7 +499,8 @@ void doTout() { // store DOW temperature in char array
 
 void loop() {
   ArduinoOTA.handle(); // check for OTA updates
-  webSocket.loop();
+  webSocket.loop(); // handle webSocket stuff
+  httpd.handleClient(); // handle http requests
 
   if (!mqtt.connected()) { // check on MQTT connection
     useMQTT = false;
