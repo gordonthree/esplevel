@@ -10,7 +10,9 @@ added more MQTT topics, now reporting RSSI and also epoch timestamp
 
 same data is available via websocket server on port 81 
 
-basic html websock client is now operational!
+basic html websock client is now operational, with a pretty graph even
+
+![web app image](http://i.imgur.com/Xl5L78ol.png)
 
 To do yet:
 
