@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
+#include <ESP8266WebServer.h>
+#include <FS.h>
 #include <ArduinoOTA.h>
 #include <Time.h>
 #include <Wire.h>
@@ -37,6 +39,7 @@ DallasTemperature ds18b20(&oneWire);
 WiFiClient espClient;
 PubSubClient mqtt(espClient); // attach mqtt client to the wifi stack
 WebSocketsServer webSocket = WebSocketsServer(81); // websocket server will listen on port 81
+ESP8266WebServer httpd(80);
 
 #define serialDebug 0 // flag for serial debugging commands
 
@@ -188,6 +191,48 @@ void mqttCallback(char* topic, uint8_t* payload, uint16_t len) { // handle MQTT 
   handleMsg(tmp);
 }
 
+bool loadFromSpiffs(String path){
+  String dataType = "text/plain";
+  if(path.endsWith("/")) path += "index.html";
+
+  if(path.endsWith(".src")) path = path.substring(0, path.lastIndexOf("."));
+  else if(path.endsWith(".htm")) dataType = "text/html";
+  else if(path.endsWith(".html")) dataType = "text/html";
+  else if(path.endsWith(".css")) dataType = "text/css";
+  else if(path.endsWith(".js")) dataType = "application/javascript";
+  else if(path.endsWith(".png")) dataType = "image/png";
+  else if(path.endsWith(".gif")) dataType = "image/gif";
+  else if(path.endsWith(".jpg")) dataType = "image/jpeg";
+  else if(path.endsWith(".ico")) dataType = "image/x-icon";
+  else if(path.endsWith(".xml")) dataType = "text/xml";
+  else if(path.endsWith(".pdf")) dataType = "application/pdf";
+  else if(path.endsWith(".zip")) dataType = "application/zip";
+  File dataFile = SPIFFS.open(path.c_str(), "r");
+  if (httpd.hasArg("download")) dataType = "application/octet-stream";
+  if (httpd.streamFile(dataFile, dataType) != dataFile.size()) {
+  }
+
+  dataFile.close();
+  return true;
+}
+
+void handleNotFound(){
+  if(loadFromSpiffs(httpd.uri())) return;
+  String message = "File Not Found\n\n";
+  message += "URI: ";
+  message += httpd.uri();
+  message += "\nMethod: ";
+  message += (httpd.method() == HTTP_GET)?"GET":"POST";
+  message += "\nArguments: ";
+  message += httpd.args();
+  message += "\n";
+  for (uint8_t i=0; i<httpd.args(); i++){
+    message += " NAME:"+httpd.argName(i) + "\n VALUE:" + httpd.arg(i) + "\n";
+  }
+  httpd.send(404, "text/plain", message);
+  // Serial.println(message);
+}
+
 void setup_wifi() { // setup wifi and network stuff
   delay(10);
   // We start by connecting to a WiFi network
@@ -255,6 +300,9 @@ boolean mqttReconnect() { // connect or reconnect to MQTT server
 void setup() { // setup stuff and things on the micro
   if (serialDebug) Serial.begin(115200);
 
+  // start the filesystem
+  SPIFFS.begin();
+
   if (HASDOW) {
     hasTout = false;
     pinMode(DOWPWR, OUTPUT);
@@ -265,8 +313,28 @@ void setup() { // setup stuff and things on the micro
 
   Wire.begin(pinSDA, pinSCL); // setup i2c bus
 
+  // setup WiFi and OTA
   setup_wifi();
-  // i2c_scan();
+
+  // Set up mDNS responder:
+  // - first argument is the domain name, in this example
+  //   the fully-qualified domain name is "esp8266.local"
+  // - second argument is the IP address to advertise
+  //   we send our IP address on the WiFi network
+  if (!MDNS.begin("esp8266")) {
+    if (serialDebug) Serial.println("Error setting up MDNS responder!");
+  } else {
+    if (serialDebug) Serial.println("mDNS responder started");
+  }
+
+    // install handler for http server
+  httpd.onNotFound(handleNotFound);
+
+  // start the webserver
+  httpd.begin();
+
+  // Add service to MDNS-SD
+  MDNS.addService("http", "tcp", 80);
 
   // setup MQTT
   lastReconnectAttempt = 0;
