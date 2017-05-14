@@ -25,9 +25,9 @@ $(document).on("pagecreate",function() {
       var line2 = new TimeSeries();
       var line3 = new TimeSeries();
 
-      smoothie.addTimeSeries(line1, { lineWidth:3, strokeStyle:'#00ff00',fillStyle:'rgba(0,0,0,0.30)' });
-      smoothie.addTimeSeries(line2, { lineWidth:3,strokeStyle:'#ff8000' });
-      smoothie.addTimeSeries(line3, { lineWidth:3,strokeStyle:'#0040ff' });
+      smoothie.addTimeSeries(line1, { lineWidth:3, strokeStyle:'#00ff00' });
+      smoothie.addTimeSeries(line2, { lineWidth:3, strokeStyle:'#ff8000' });
+      smoothie.addTimeSeries(line3, { lineWidth:3, strokeStyle:'#0040ff' });
       smoothie.streamTo(document.getElementById("chart"), 100);
 
       connect(); // initate websockets client

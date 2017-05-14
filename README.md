@@ -6,6 +6,9 @@ WiFi enabled 3-axis accelerometer. Intended to be installed in my RV trailer so 
 
 Progress so far:
 
+code still compiles to fit (via OTA) on an 1mbit ESP01/07 module with 64kbit set aside for SPIFFS
+intended for a more spacious ESP12 or ESP7s
+
 added more MQTT topics, now reporting RSSI and also epoch timestamp
 
 same data is available via websocket server on port 81 

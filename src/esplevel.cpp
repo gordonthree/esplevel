@@ -24,14 +24,20 @@
 #include <WiFiSETUP.h> // private wifi network details defined here
 #endif
 
-
+#ifndef ADXL
 #define ADXL 0x53 // i2c address for accel
+#endif
 
+#ifndef HASDOW
 #define HASDOW 0 // device has 1-wire device attached
 #define DOWPIN 4 // 1-wire data pin
 #define DOWPWR 5 // 1-wire power pin
+#endif
+
+#ifndef pinSDA
 #define pinSDA 12 // i2c data pin
 #define pinSCL 13 // i2c clock oin
+#endif
 
 ADXL345 accel(ADXL);
 OneWire oneWire(DOWPIN);
@@ -353,10 +359,9 @@ void setup() { // setup stuff and things on the micro
   SPIFFS.begin();
 
   if (HASDOW) {
-    hasTout = false;
+    hasTout = true;
     pinMode(DOWPWR, OUTPUT);
     // turn on the one wire device
-    digitalWrite(DOWPWR, 1);
     ds18b20.begin(); // start one wire temp probe
   }
 
